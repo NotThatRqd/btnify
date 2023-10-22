@@ -37,11 +37,11 @@ where
     }
 }
 
-fn get_root() -> &'static str {
+async fn get_root() -> &'static str {
     "hello"
 }
 
-fn post_root() -> Json<ButtonResponse> {
+async fn post_root() -> Json<ButtonResponse> {
     Json(ButtonResponse {
         message: "hello".to_string()
     })
