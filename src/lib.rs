@@ -1,49 +1,62 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use axum::{Json, Router};
-use axum::handler::Handler;
+use axum::extract::State;
+use axum::response::Html;
 use axum::routing::get;
 use crate::button::{Button, ButtonInfo, ButtonResponse};
+use crate::html_utils::create_page_html;
 
 mod html_utils;
 mod button;
 
-pub struct BtnifyServer<H, T, S>
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
-    buttons: Vec<Button<H, T, S>>
+struct BtnifyState<S> {
+    buttons_map: HashMap<String, Box<dyn Fn(&S) -> ButtonResponse>>,
+    user_state: S,
+    page: Html<String>
 }
 
-impl<H, T, S> BtnifyServer<H, T, S>
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
-    pub fn new() -> BtnifyServer<H, T, S> {
-        BtnifyServer { buttons: vec![] }
-    }
+/// Start your btnify server on the specified address with the specified buttons
+///
+/// Addr is the address to host the server
+///
+/// Buttons is a list of the buttons to put on the website
+pub async fn bind_server<S>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) {
+    let page = Html(create_page_html(buttons.iter()));
 
-    pub async fn bind(&self, addr: &SocketAddr) {
-        let app = Router::new()
-            .route("/", get(get_root).post(post_root));
+    // todo: what if two buttons have the same id?
+    let buttons_map = buttons.into_iter()
+        .map(|b| (b.id, b.handler))
+        .collect();
 
-        axum::Server::bind(addr)
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
-    }
+    let btnify_state = Arc::new(BtnifyState {
+        buttons_map,
+        user_state,
+        page
+    });
+
+    let app = Router::new()
+        .route("/", get(get_root).post(post_root))
+        .with_state(btnify_state);
+
+    axum::Server::bind(addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }
 
-async fn get_root() -> &'static str {
-    "hello"
+async fn get_root<S>(State(state): State<BtnifyState<S>>) -> Html<String> {
+    state.page
 }
 
-async fn post_root() -> Json<ButtonResponse> {
-    Json(ButtonResponse {
-        message: "hello".to_string()
-    })
-}
+async fn post_root<S>(State(state): State<BtnifyState<S>>, Json(info): Json<ButtonInfo>) -> Json<ButtonResponse> {
+    let handler = state.buttons_map.get(&info.id);
 
+    let res = match handler {
+        Some(handler) => handler(&state.user_state),
+        None => ButtonResponse::unknown_id()
+    };
+
+    Json(res)
+}

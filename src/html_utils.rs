@@ -1,14 +1,6 @@
-use axum::handler::Handler;
-use axum::Json;
 use crate::Button;
-use crate::button::ButtonInfo;
 
-pub(super) fn create_page_html<'a, H, T, S>(buttons: impl Iterator<Item = &'a Button<H, T, S>>) -> String
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
+pub(super) fn create_page_html<'a, S: 'a>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
     let buttons = create_buttons_html(buttons);
 
     format!(r#"<!DOCTYPE html>
@@ -42,40 +34,33 @@ where
 </html>"#, buttons)
 }
 
-fn create_buttons_html<'a, H, T, S>(buttons: impl Iterator<Item = &'a Button<H, T, S>>) -> String
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
+fn create_buttons_html<'a, S: 'a>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
     buttons
         .map(create_button_html)
         .collect()
 }
 
-fn create_button_html<H, T, S>(button: &Button<H, T, S>) -> String
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
+fn create_button_html<S>(button: &Button<S>) -> String {
     format!(r#"<button onclick="showMessage('{}')">{}</button>"#, button.id, button.name)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::convert::Infallible;
+    use axum::Json;
     use crate::Button;
+    use crate::button::{BtnifyState, ButtonInfo};
     use super::*;
 
     #[test]
     fn create_button_test() {
-        let button = create_button_html(&Button::new("Count"));
+        let button = create_button_html(&Button::new("Count", ()));
         assert_eq!(button, r#"<button onclick="showMessage('count')">Count</button>"#);
     }
 
     #[test]
     fn create_buttons_test() {
-        let count = Button::new("Count", ());
+        let count = Button::new("Count", dummy);
         let ping = Button::new("Ping", ());
         let greet = Button::new("Greet", ());
 
@@ -87,5 +72,10 @@ mod tests {
         assert_eq!(buttons_html, "<button onclick=\"showMessage('count')\">Count</button>\
         <button onclick=\"showMessage('ping')\">Ping</button>\
         <button onclick=\"showMessage('greet')\">Greet</button>");
+    }
+
+    /// Dummy Button handler function
+    fn dummy(BtnifyState(state): BtnifyState<Infallible>, Json(info): Json<ButtonInfo>) -> Json<ButtonInfo> {
+        todo!()
     }
 }

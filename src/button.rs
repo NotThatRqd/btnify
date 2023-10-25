@@ -1,29 +1,19 @@
-use axum::handler::Handler;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
-pub struct Button<H, T, S>
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
-    pub(crate) name: String,
-    pub(crate) id: String,
-    handler: H
+/// Represents a button you can put on your website :)
+pub struct Button<S> {
+    // todo: add "get_name" and "get_id" which return immutable str slice
+    pub name: String,
+    pub id: String,
+    pub handler: Box<dyn Fn(&S) -> ButtonResponse>
 }
 
-impl<H, T, S> Button<H, T, S>
-where
-    H: Handler<T, S, Json<ButtonInfo>>,
-    T: 'static,
-    S: Clone + Send + Sync + 'static
-{
-    pub fn new(name: &str, handler: H) -> Button<H, T, S> {
+impl<S> Button<S> {
+    pub fn new(name: &str, handler: impl Fn(&S) -> ButtonResponse) -> Button<S> {
         Button {
             name: name.to_string(),
             id: name.to_lowercase(),
-            handler
+            handler: Box::new(handler)
         }
     }
 }
@@ -37,6 +27,14 @@ pub struct ButtonInfo {
 #[derive(Serialize)]
 pub struct ButtonResponse {
     pub message: String
+}
+
+impl ButtonResponse {
+    pub(crate) fn unknown_id() -> ButtonResponse {
+        ButtonResponse {
+            message: "Unknown button id".to_string()
+        }
+    }
 }
 
 impl ButtonResponse {
