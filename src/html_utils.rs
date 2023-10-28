@@ -1,6 +1,6 @@
 use crate::Button;
 
-pub(super) fn create_page_html<'a, S: 'a>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
+pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
     let buttons = create_buttons_html(buttons);
 
     format!(r#"<!DOCTYPE html>
@@ -34,13 +34,13 @@ pub(super) fn create_page_html<'a, S: 'a>(buttons: impl Iterator<Item = &'a Butt
 </html>"#, buttons)
 }
 
-fn create_buttons_html<'a, S: 'a>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
+fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
     buttons
         .map(create_button_html)
         .collect()
 }
 
-fn create_button_html<S>(button: &Button<S>) -> String {
+fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>) -> String {
     format!(r#"<button onclick="showMessage('{}')">{}</button>"#, button.id, button.name)
 }
 

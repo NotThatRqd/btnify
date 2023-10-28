@@ -11,18 +11,10 @@ use crate::html_utils::create_page_html;
 mod html_utils;
 pub mod button;
 
-struct BtnifyState<S> {
-    buttons_map: HashMap<String, Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>>,
-    user_state: S,
-    page: Html<String>
-}
-
-/// Start your btnify server on the specified address with the specified buttons
+/// Start your btnify server on the specified address with the specified buttons.
 ///
-/// Addr is the address to host the server
-///
-/// Buttons is a list of the buttons to put on the website
-pub async fn bind_server<M: Send + Sync + 'static>(addr: SocketAddr, buttons: Vec<Button<M>>, user_state: M) {
+/// When a button is clicked its handler will be given a reference to user_state.
+pub async fn bind_server<S: Send + Sync + 'static>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) {
     let page = Html(create_page_html(buttons.iter()));
 
     // todo: what if two buttons have the same id?
@@ -40,7 +32,7 @@ pub async fn bind_server<M: Send + Sync + 'static>(addr: SocketAddr, buttons: Ve
         .route("/", get(get_root).post(post_root))
         .with_state(btnify_state);
 
-    axum::Server::bind(&addr)
+    axum::Server::bind(addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
@@ -60,4 +52,10 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
     };
 
     Json(res)
+}
+
+struct BtnifyState<S> {
+    buttons_map: HashMap<String, Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>>,
+    user_state: S,
+    page: Html<String>
 }
