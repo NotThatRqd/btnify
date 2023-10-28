@@ -5,11 +5,11 @@ pub struct Button<S> {
     // todo: add "get_name" and "get_id" which return immutable str slice
     pub name: String,
     pub id: String,
-    pub handler: Box<dyn Fn(&S) -> ButtonResponse>
+    pub handler: Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>
 }
 
 impl<S> Button<S> {
-    pub fn new(name: &str, handler: impl Fn(&S) -> ButtonResponse) -> Button<S> {
+    pub fn new<T: Send + Sync + Fn(&S) -> ButtonResponse + 'static>(name: &str, handler: T) -> Button<S> {
         Button {
             name: name.to_string(),
             id: name.to_lowercase(),
@@ -30,15 +30,13 @@ pub struct ButtonResponse {
 }
 
 impl ButtonResponse {
+    pub fn new(message: &str) -> ButtonResponse {
+        ButtonResponse { message: message.to_string() }
+    }
+
     pub(crate) fn unknown_id() -> ButtonResponse {
         ButtonResponse {
             message: "Unknown button id".to_string()
         }
-    }
-}
-
-impl ButtonResponse {
-    fn new(message: &str) -> ButtonResponse {
-        ButtonResponse { message: message.to_string() }
     }
 }

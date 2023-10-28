@@ -9,10 +9,10 @@ use crate::button::{Button, ButtonInfo, ButtonResponse};
 use crate::html_utils::create_page_html;
 
 mod html_utils;
-mod button;
+pub mod button;
 
 struct BtnifyState<S> {
-    buttons_map: HashMap<String, Box<dyn Fn(&S) -> ButtonResponse>>,
+    buttons_map: HashMap<String, Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>>,
     user_state: S,
     page: Html<String>
 }
@@ -22,7 +22,7 @@ struct BtnifyState<S> {
 /// Addr is the address to host the server
 ///
 /// Buttons is a list of the buttons to put on the website
-pub async fn bind_server<S>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) {
+pub async fn bind_server<M: Send + Sync + 'static>(addr: SocketAddr, buttons: Vec<Button<M>>, user_state: M) {
     let page = Html(create_page_html(buttons.iter()));
 
     // todo: what if two buttons have the same id?
@@ -40,17 +40,18 @@ pub async fn bind_server<S>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_sta
         .route("/", get(get_root).post(post_root))
         .with_state(btnify_state);
 
-    axum::Server::bind(addr)
+    axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
 }
 
-async fn get_root<S>(State(state): State<BtnifyState<S>>) -> Html<String> {
-    state.page
+async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> Html<String> {
+    // TODO: DONT USE CLONE
+    state.page.clone()
 }
 
-async fn post_root<S>(State(state): State<BtnifyState<S>>, Json(info): Json<ButtonInfo>) -> Json<ButtonResponse> {
+async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Json(info): Json<ButtonInfo>) -> Json<ButtonResponse> {
     let handler = state.buttons_map.get(&info.id);
 
     let res = match handler {

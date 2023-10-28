@@ -46,23 +46,25 @@ fn create_button_html<S>(button: &Button<S>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
-    use axum::Json;
-    use crate::Button;
-    use crate::button::{BtnifyState, ButtonInfo};
+    use crate::button::ButtonResponse;
     use super::*;
+
+    /// Dummy function that can be used as a button handler
+    fn dummy(_: &()) -> ButtonResponse {
+        todo!()
+    }
 
     #[test]
     fn create_button_test() {
-        let button = create_button_html(&Button::new("Count", ()));
+        let button = create_button_html(&Button::new("Count", dummy));
         assert_eq!(button, r#"<button onclick="showMessage('count')">Count</button>"#);
     }
 
     #[test]
     fn create_buttons_test() {
         let count = Button::new("Count", dummy);
-        let ping = Button::new("Ping", ());
-        let greet = Button::new("Greet", ());
+        let ping = Button::new("Ping", dummy);
+        let greet = Button::new("Greet", dummy);
 
         let list = [count, ping, greet];
 
@@ -72,10 +74,5 @@ mod tests {
         assert_eq!(buttons_html, "<button onclick=\"showMessage('count')\">Count</button>\
         <button onclick=\"showMessage('ping')\">Ping</button>\
         <button onclick=\"showMessage('greet')\">Greet</button>");
-    }
-
-    /// Dummy Button handler function
-    fn dummy(BtnifyState(state): BtnifyState<Infallible>, Json(info): Json<ButtonInfo>) -> Json<ButtonInfo> {
-        todo!()
     }
 }
