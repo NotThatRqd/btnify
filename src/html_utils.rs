@@ -11,7 +11,6 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
     </head>
     <body>
         {}
-        <button onclick="showMessage(prompt('enter id'))">other</button>
 
         <script>
             async function showMessage(id) {{
@@ -36,12 +35,13 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
 
 fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
     buttons
-        .map(create_button_html)
+        .enumerate()
+        .map(|(id, b)| create_button_html(b, id))
         .collect()
 }
 
-fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>) -> String {
-    format!(r#"<button onclick="showMessage('{}')">{}</button>"#, button.id, button.name)
+fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
+    format!(r#"<button onclick="showMessage({})">{}</button>"#, id, button.name)
 }
 
 #[cfg(test)]
@@ -51,13 +51,13 @@ mod tests {
 
     /// Dummy function that can be used as a button handler
     fn dummy(_: &()) -> ButtonResponse {
-        todo!()
+        unimplemented!()
     }
 
     #[test]
     fn create_button_test() {
-        let button = create_button_html(&Button::new("Count", dummy));
-        assert_eq!(button, r#"<button onclick="showMessage('count')">Count</button>"#);
+        let button = create_button_html(&Button::new("Count", dummy), 0);
+        assert_eq!(button, r#"<button onclick="showMessage(0)">Count</button>"#);
     }
 
     #[test]
@@ -71,8 +71,8 @@ mod tests {
         let buttons_html = create_buttons_html(list.iter());
 
         // todo: make cleaner using raw string
-        assert_eq!(buttons_html, "<button onclick=\"showMessage('count')\">Count</button>\
-        <button onclick=\"showMessage('ping')\">Ping</button>\
-        <button onclick=\"showMessage('greet')\">Greet</button>");
+        assert_eq!(buttons_html, "<button onclick=\"showMessage(0)\">Count</button>\
+        <button onclick=\"showMessage(1)\">Ping</button>\
+        <button onclick=\"showMessage(2)\">Greet</button>");
     }
 }

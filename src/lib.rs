@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::{Json, Router};
@@ -17,13 +16,13 @@ pub mod button;
 pub async fn bind_server<S: Send + Sync + 'static>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) {
     let page = Html(create_page_html(buttons.iter()));
 
-    // todo: what if two buttons have the same id?
-    let buttons_map = buttons.into_iter()
-        .map(|b| (b.id, b.handler))
+    let buttons_map = buttons
+        .into_iter()
+        .map(|b| b.handler)
         .collect();
 
     let btnify_state = Arc::new(BtnifyState {
-        buttons_map,
+        button_handlers: buttons_map,
         user_state,
         page
     });
@@ -44,7 +43,7 @@ async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> H
 }
 
 async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Json(info): Json<ButtonInfo>) -> Json<ButtonResponse> {
-    let handler = state.buttons_map.get(&info.id);
+    let handler = state.button_handlers.get(info.id);
 
     let res = match handler {
         Some(handler) => handler(&state.user_state),
@@ -55,7 +54,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
 }
 
 struct BtnifyState<S> {
-    buttons_map: HashMap<String, Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>>,
+    button_handlers: Vec<Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>>,
     user_state: S,
     page: Html<String>
 }

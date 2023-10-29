@@ -37,7 +37,6 @@ use serde::{Deserialize, Serialize};
 pub struct Button<S: Send + Sync + 'static> {
     // todo: add "get_name" and "get_id" which return immutable str slice
     pub name: String,
-    pub id: String,
     pub handler: Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>
 }
 
@@ -48,10 +47,10 @@ impl<S: Send + Sync + 'static> Button<S> {
     ///
     /// `Handler` is a function or closure that takes a reference to a user provided state (`S`) and
     /// returns `ButtonResponse`. It will be called whenever this button is pressed.
+    // todo: implement Button::from<&str>
     pub fn new<T: Send + Sync + Fn(&S) -> ButtonResponse + 'static>(name: &str, handler: T) -> Button<S> {
         Button {
             name: name.to_string(),
-            id: name.to_lowercase(),
             handler: Box::new(handler)
         }
     }
@@ -59,7 +58,7 @@ impl<S: Send + Sync + 'static> Button<S> {
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ButtonInfo {
-    pub id: String
+    pub id: usize
     // todo: allow any extra data to be sent
 }
 
