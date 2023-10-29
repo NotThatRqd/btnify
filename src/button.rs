@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// use btnify::button::{Button, ButtonResponse};
 ///
 /// fn greet_handler(_: &()) -> ButtonResponse {
-///     ButtonResponse::new("Hello world!")
+///     ButtonResponse::from("Hello world!")
 /// }
 ///
 /// let greet_button = Button::new("Greet", greet_handler);
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// fn count_handler(state: &Counter) -> ButtonResponse {
 ///     let mut count = state.count.lock().unwrap();
 ///     *count += 1;
-///     ButtonResponse::new(&format!("The count now is: {count}"))
+///     format!("The count now is: {count}").into()
 /// }
 ///
 /// let count_button = Button::new("Count", count_handler);
@@ -47,7 +47,6 @@ impl<S: Send + Sync + 'static> Button<S> {
     ///
     /// `Handler` is a function or closure that takes a reference to a user provided state (`S`) and
     /// returns `ButtonResponse`. It will be called whenever this button is pressed.
-    // todo: implement Button::from<&str>
     pub fn new<T: Send + Sync + Fn(&S) -> ButtonResponse + 'static>(name: &str, handler: T) -> Button<S> {
         Button {
             name: name.to_string(),
@@ -68,11 +67,19 @@ pub struct ButtonResponse {
     pub message: String
 }
 
-impl ButtonResponse {
-    pub fn new(message: &str) -> ButtonResponse {
+impl From<&str> for ButtonResponse {
+    fn from(message: &str) -> Self {
         ButtonResponse { message: message.to_string() }
     }
+}
 
+impl From<String> for ButtonResponse {
+    fn from(message: String) -> Self {
+        ButtonResponse { message }
+    }
+}
+
+impl ButtonResponse {
     pub(crate) fn unknown_id() -> ButtonResponse {
         ButtonResponse {
             message: "Unknown button id".to_string()
