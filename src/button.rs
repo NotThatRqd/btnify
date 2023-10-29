@@ -35,7 +35,6 @@ use serde::{Deserialize, Serialize};
 /// let count_button = Button::new("Count", count_handler);
 /// ```
 pub struct Button<S: Send + Sync + 'static> {
-    // todo: add "get_name" and "get_id" which return immutable str slice
     pub name: String,
     pub handler: Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>
 }
@@ -76,13 +75,5 @@ impl From<&str> for ButtonResponse {
 impl From<String> for ButtonResponse {
     fn from(message: String) -> Self {
         ButtonResponse { message }
-    }
-}
-
-impl ButtonResponse {
-    pub(crate) fn unknown_id() -> ButtonResponse {
-        ButtonResponse {
-            message: "Unknown button id".to_string()
-        }
     }
 }

@@ -47,7 +47,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
 
     let res = match handler {
         Some(handler) => handler(&state.user_state),
-        None => ButtonResponse::unknown_id()
+        None => "Unknown button id".into()
     };
 
     Json(res)
