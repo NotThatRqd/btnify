@@ -12,8 +12,11 @@ pub mod button;
 
 /// Start your btnify server on the specified address with the specified buttons.
 ///
-/// When a button is clicked its handler will be given a reference to user_state.
-pub async fn bind_server<S: Send + Sync + 'static>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) {
+/// # Errors
+///
+/// Returns an error if there is a problem actually running the HTTP server, like if the address
+/// is already being used by another application.
+pub async fn bind_server<S: Send + Sync + 'static>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) -> hyper::Result<()> {
     let page = Html(create_page_html(buttons.iter()));
 
     let buttons_map = buttons
@@ -34,7 +37,6 @@ pub async fn bind_server<S: Send + Sync + 'static>(addr: &SocketAddr, buttons: V
     axum::Server::bind(addr)
         .serve(app.into_make_service())
         .await
-        .unwrap();
 }
 
 async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> Html<String> {

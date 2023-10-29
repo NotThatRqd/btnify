@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 /// returns `ButtonResponse`. It will be called whenever this button is pressed.
 ///
 /// # Examples
+///
 /// ```
 /// use btnify::button::{Button, ButtonResponse};
 ///
