@@ -13,8 +13,20 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
         {}
 
         <script>
-            async function showMessage(id) {{
-                const data = await postData("/", {{ id }});
+            async function showMessage(id, extra_questions = null) {{
+                let extra_answers = [];
+                if (extra_questions === null) {{
+                    extra_answers = null;
+                }} else {{
+                    for (const question of extra_questions) {{
+                        let answer = prompt(question);
+                        if (answer === null) {{
+                            answer = "(No response from user)";
+                        }}
+                        extra_answers.push(answer);
+                    }}
+                }}
+                const data = await postData("/", {{ id, extra_answers }});
                 alert(data.message);
             }}
 
@@ -41,7 +53,22 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item
 }
 
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
-    format!(r#"<button onclick="showMessage({})">{}</button>"#, id, button.name)
+    let questions_html = match &button.extra_questions {
+        Some(extra_questions) => {
+            let mut questions_html = "[".to_string();
+            for question in extra_questions {
+                questions_html.push('\'');
+                questions_html.push_str(question);
+                questions_html.push('\'');
+                questions_html.push(',');
+            }
+            questions_html.push(']');
+            questions_html
+        }
+        None => "null".to_string()
+    };
+
+    format!(r#"<button onclick="showMessage({id}, {questions_html})">{}</button>"#, button.name)
 }
 
 #[cfg(test)]
@@ -50,29 +77,37 @@ mod tests {
     use super::*;
 
     /// Dummy function that can be used as a button handler
-    fn dummy(_: &()) -> ButtonResponse {
+    fn dummy(_: &(), _: Option<Vec<String>>) -> ButtonResponse {
         unimplemented!()
     }
 
     #[test]
     fn create_button_test() {
-        let button = create_button_html(&Button::new("Count", dummy), 0);
-        assert_eq!(button, r#"<button onclick="showMessage(0)">Count</button>"#);
+        let button = create_button_html(&Button::new("Count", dummy, None), 0);
+        assert_eq!(button, r#"<button onclick="showMessage(0, null)">Count</button>"#);
     }
 
     #[test]
     fn create_buttons_test() {
-        let count = Button::new("Count", dummy);
-        let ping = Button::new("Ping", dummy);
-        let greet = Button::new("Greet", dummy);
+        let count = Button::new(
+            "Count",
+            dummy,
+            Some(vec!["How much do you want to add?".to_string()])
+        );
+        let ping = Button::new("Ping", dummy, None);
+        let greet = Button::new(
+            "Greet",
+            dummy,
+            Some(vec!["Name?".to_string(), "Fav. Color?".to_string()])
+        );
 
         let list = [count, ping, greet];
 
         let buttons_html = create_buttons_html(list.iter());
 
         // todo: make cleaner using raw string
-        assert_eq!(buttons_html, "<button onclick=\"showMessage(0)\">Count</button>\
-        <button onclick=\"showMessage(1)\">Ping</button>\
-        <button onclick=\"showMessage(2)\">Greet</button>");
+        assert_eq!(buttons_html, "<button onclick=\"showMessage(0, ['How much do you want to add?',])\">Count</button>\
+        <button onclick=\"showMessage(1, null)\">Ping</button>\
+        <button onclick=\"showMessage(2, ['Name?','Fav. Color?',])\">Greet</button>");
     }
 }

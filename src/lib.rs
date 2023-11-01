@@ -48,7 +48,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
     let handler = state.button_handlers.get(info.id);
 
     let res = match handler {
-        Some(handler) => handler(&state.user_state),
+        Some(handler) => handler(&state.user_state, info.extra_answers),
         None => "Unknown button id".into()
     };
 
@@ -56,7 +56,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
 }
 
 struct BtnifyState<S> {
-    button_handlers: Vec<Box<dyn (Fn(&S) -> ButtonResponse) + Send + Sync>>,
+    button_handlers: Vec<Box<dyn (Fn(&S, Option<Vec<String>>) -> ButtonResponse) + Send + Sync>>,
     user_state: S,
     page: Html<String>
 }
