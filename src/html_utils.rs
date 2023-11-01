@@ -53,9 +53,9 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item
 }
 
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
-    let questions_html = match &button.extra_questions {
+    let questions_array = match &button.extra_questions {
         Some(extra_questions) => {
-            let questions_html = extra_questions
+            let questions_array = extra_questions
                 .iter()
 
                 // put single quotes around each question
@@ -66,14 +66,14 @@ fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -
                 .join(",");
 
             // surround with array brackets
-            let questions_html = format!("[{questions_html}]");
+            let questions_array = format!("[{questions_array}]");
 
-            questions_html
+            questions_array
         }
         None => "null".to_string()
     };
 
-    format!(r#"<button onclick="showMessage({id}, {questions_html})">{}</button>"#, button.name)
+    format!(r#"<button onclick="showMessage({id}, {questions_array})">{}</button>"#, button.name)
 }
 
 #[cfg(test)]
