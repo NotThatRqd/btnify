@@ -55,14 +55,19 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
     let questions_html = match &button.extra_questions {
         Some(extra_questions) => {
-            let mut questions_html = "[".to_string();
-            for question in extra_questions {
-                questions_html.push('\'');
-                questions_html.push_str(question);
-                questions_html.push('\'');
-                questions_html.push(',');
-            }
-            questions_html.push(']');
+            let questions_html = extra_questions
+                .iter()
+
+                // put single quotes around each question
+                .map(|question| format!("'{question}'"))
+
+                // separate each question with a comma
+                .collect::<Vec<String>>()
+                .join(",");
+
+            // surround with array brackets
+            let questions_html = format!("[{questions_html}]");
+
             questions_html
         }
         None => "null".to_string()
@@ -106,8 +111,8 @@ mod tests {
         let buttons_html = create_buttons_html(list.iter());
 
         // todo: make cleaner using raw string
-        assert_eq!(buttons_html, "<button onclick=\"showMessage(0, ['How much do you want to add?',])\">Count</button>\
+        assert_eq!(buttons_html, "<button onclick=\"showMessage(0, ['How much do you want to add?'])\">Count</button>\
         <button onclick=\"showMessage(1, null)\">Ping</button>\
-        <button onclick=\"showMessage(2, ['Name?','Fav. Color?',])\">Greet</button>");
+        <button onclick=\"showMessage(2, ['Name?','Fav. Color?'])\">Greet</button>");
     }
 }
