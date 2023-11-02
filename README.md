@@ -2,7 +2,7 @@
 Hosts a website with buttons for you so you can focus on what matters!
 
 Btnify is a small libary that lets you host a website with some buttons that will call a function or closure
-when clicked. Under the hood, Btnify uses [Axum](https://crates.io/crates/axum). This library is, I must admit,
+when clicked. Under the hood, Btnify uses [Axum](https://github.com/tokio-rs/axum). This library is, I must admit,
 rather crude, but it works and it's open source! Please leave a pull request with any improvments you have :)
 I would appriciate it very much.
 
