@@ -34,58 +34,6 @@ Add `btnify = "1.0.0"` to your `Cargo.toml`
 
 ## How to use
 
-Btnify is simple enough you can get started by simply checking out the examples below.
-You can also refer to [Btnify's documentation](http://docs.rs/btnify).
-
-## Examples (NOT UP TO DATE)
-
-Hello world
-
-```rust
-use btnify::{
-	bind_server,
-	button::{Button, ButtonResponse}
-};
-
-fn greet_handler(_: &()) -> ButtonResponse {
-    ButtonResponse::from("Hello world!")
-}
-
-let greet_button = Button::new("Greet", greet_handler);
-
-let buttons = vec![greet_button];
-
-// Notice: bind_server is async and you must await it
-bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, ())
-    .await
-    .unwrap();
-```
-
-Counting app
-
-```rust
-use std::sync::Mutex;
-use btnify::{
-	bind_server,
-	button::{Button, ButtonResponse}
-};
-
-struct Counter {
-    count: Mutex<i32>
-}
-
-fn count_handler(state: &Counter) -> ButtonResponse {
-    let mut count = state.count.lock().unwrap();
-    *count += 1;
-    format!("The count now is: {count}").into()
-}
-
-let count_button = Button::new("Count", count_handler);
-
-let buttons = vec![count_button];
-
-// Notice: bind_server is async and you must await it
-bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, ())
-    .await
-    .unwrap();
-```
+Btnify is simple enough you can get started by just reading some examples.
+Most examples can be found in the button module in
+[Btnify's documentation](http://docs.rs/btnify).
