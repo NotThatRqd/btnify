@@ -20,9 +20,6 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
                 }} else {{
                     for (const question of extra_questions) {{
                         let answer = prompt(question);
-                        if (answer === null) {{
-                            answer = "(No response from user)";
-                        }}
                         extra_answers.push(answer);
                     }}
                 }}
@@ -53,9 +50,9 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item
 }
 
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
-    let questions_array = match &button.extra_questions {
-        Some(extra_questions) => {
-            let questions_array = extra_questions
+    let questions_array = match &button.extra_prompts {
+        Some(extra_prompts) => {
+            let questions_array = extra_prompts
                 .iter()
 
                 // put single quotes around each question
@@ -82,7 +79,7 @@ mod tests {
     use super::*;
 
     /// Dummy function that can be used as a button handler
-    fn dummy(_: &(), _: Option<Vec<String>>) -> ButtonResponse {
+    fn dummy(_: &(), _: Option<Vec<Option<String>>>) -> ButtonResponse {
         unimplemented!()
     }
 

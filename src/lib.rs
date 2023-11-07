@@ -1,16 +1,21 @@
+#![doc=include_str!("../README.md")]
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::{Json, Router};
 use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
-use crate::button::{Button, ButtonInfo, ButtonResponse};
+use crate::button::{Button, ButtonInfo, ButtonResponse, ExtraResponse};
 use crate::html_utils::create_page_html;
 
 mod html_utils;
 pub mod button;
 
-/// Start your btnify server on the specified address with the specified buttons.
+/// Start your btnify server on the specified address with the specified [Button]s and [state].
+/// If you don't need any custom state then use a unit (`()`)
+///
+/// [state]: button
 ///
 /// # Errors
 ///
@@ -48,7 +53,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
     let handler = state.button_handlers.get(info.id);
 
     let res = match handler {
-        Some(handler) => handler(&state.user_state, info.extra_answers),
+        Some(handler) => handler(&state.user_state, info.extra_responses),
         None => "Unknown button id".into()
     };
 
@@ -56,7 +61,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
 }
 
 struct BtnifyState<S> {
-    button_handlers: Vec<Box<dyn (Fn(&S, Option<Vec<String>>) -> ButtonResponse) + Send + Sync>>,
+    button_handlers: Vec<Box<dyn (Fn(&S, Option<Vec<ExtraResponse>>) -> ButtonResponse) + Send + Sync>>,
     user_state: S,
     page: Html<String>
 }
