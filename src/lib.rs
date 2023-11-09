@@ -5,13 +5,14 @@
 //! ```
 //! use btnify::button::{Button, ButtonResponse, ExtraResponse};
 //!
-//! fn greet_handler(_: &(), _:Option<Vec<ExtraResponse>>) -> ButtonResponse {
+//! fn greet_handler() -> ButtonResponse {
 //!     ButtonResponse::from("hello world!")
 //! }
 //!
 //! // No extra prompts for this button
-//! let greet_button = Button::new("Greet!", greet_handler, None);
+//! let greet_button: Button<()> = Button::create_basic_button("Greet!", Box::new(greet_handler));
 //! ```
+//!
 //! Counter
 //!
 //! ```
@@ -22,14 +23,14 @@
 //!     count: Mutex<i32>
 //! }
 //!
-//! fn count_handler(state: &Counter, _:Option<Vec<ExtraResponse>>) -> ButtonResponse {
+//! fn count_handler(state: &Counter) -> ButtonResponse {
 //!     let mut count  = state.count.lock().unwrap();
 //!     *count += 1;
 //!     format!("The count is now: {count}").into()
 //! }
 //!
 //! // Also no extra prompts
-//! let count_button = Button::new("Counter", count_handler, None);
+//! let count_button = Button::create_button_with_state("Counter", Box::new(count_handler));
 //! ```
 
 use std::net::SocketAddr;

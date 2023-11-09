@@ -96,41 +96,45 @@ fn sanitize_for_js_string(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use html_to_string_macro::html;
     use crate::button::ButtonResponse;
     use super::*;
 
-    /// Dummy function that can be used as a button handler
-    fn dummy(_: &(), _: Option<Vec<Option<String>>>) -> ButtonResponse {
+    fn basic_dummy() -> ButtonResponse {
+        unimplemented!()
+    }
+    fn prompts_dummy(_: Vec<Option<String>>) -> ButtonResponse {
         unimplemented!()
     }
 
     #[test]
     fn create_button_test() {
-        let button = create_button_html(&Button::new("Count", dummy, None), 0);
-        assert_eq!(button, r#"<button onclick="showMessage(0, null)">Count</button>"#);
+        let button = create_button_html(&Button::<()>::create_basic_button("Count", Box::new(basic_dummy)), 0);
+        assert_eq!(button, html!(<button onclick="showMessage(0, null)">"Count"</button>));
     }
 
     #[test]
     fn create_buttons_test() {
-        let count = Button::new(
+        let count = Button::create_button_with_prompts(
             "Count",
-            dummy,
-            Some(vec!["How much do you want to add?".to_string()])
+            Box::new(prompts_dummy),
+            vec!["How much do you want to add?".to_string()]
         );
-        let ping = Button::new("Ping", dummy, None);
-        let greet = Button::new(
+        let ping = Button::create_basic_button("Ping", Box::new(basic_dummy));
+        let greet = Button::create_button_with_prompts(
             "Greet",
-            dummy,
-            Some(vec!["Name?".to_string(), "Fav. Color?".to_string()])
+            Box::new(prompts_dummy),
+            vec!["Name?".to_string(), "Fav. Color?".to_string()]
         );
 
-        let list = [count, ping, greet];
+        let list: [Button<()>; 3] = [count, ping, greet];
 
         let buttons_html = create_buttons_html(list.iter());
 
-        // todo: make cleaner using raw string
-        assert_eq!(buttons_html, "<button onclick=\"showMessage(0, ['How much do you want to add?'])\">Count</button>\
-        <button onclick=\"showMessage(1, null)\">Ping</button>\
-        <button onclick=\"showMessage(2, ['Name?','Fav. Color?'])\">Greet</button>");
+        assert_eq!(buttons_html, html!(
+            <button onclick="showMessage(0, ['How much do you want to add?'])">"Count"</button>
+            <button onclick="showMessage(1, null)">"Ping"</button>
+            <button onclick="showMessage(2, ['Name?','Fav. Color?'])">"Greet"</button>
+        ));
     }
 }

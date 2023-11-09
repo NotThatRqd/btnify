@@ -9,7 +9,8 @@ repository = "https://github.com/NotThatRqd/btnify"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version = "0.6.20" }
-hyper = { version = "0.14.27" }
+axum = "0.6.20"
+html-to-string-macro = "0.2.5"
+hyper = "0.14.27"
 serde = { version = "1.0.189", features = ["derive"] }
 serde_json = "1.0.107"
