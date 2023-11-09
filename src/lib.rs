@@ -90,17 +90,17 @@
 //! //    .unwrap();
 //! ```
 
-use std::net::SocketAddr;
-use std::sync::Arc;
-use axum::{Json, Router};
+use crate::button::{Button, ButtonHandler, ButtonInfo, ButtonResponse};
+use crate::html_utils::create_page_html;
 use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
-use crate::button::{Button, ButtonHandler, ButtonInfo, ButtonResponse};
-use crate::html_utils::create_page_html;
+use axum::{Json, Router};
+use std::net::SocketAddr;
+use std::sync::Arc;
 
-mod html_utils;
 pub mod button;
+mod html_utils;
 
 /// Start your btnify server on the specified address with the specified [Button]s and [state].
 /// If you don't need any custom state then use a unit (`()`)
@@ -111,18 +111,19 @@ pub mod button;
 ///
 /// Returns an error if there is a problem actually running the HTTP server, like if the address
 /// is already being used by another application.
-pub async fn bind_server<S: Send + Sync + 'static>(addr: &SocketAddr, buttons: Vec<Button<S>>, user_state: S) -> hyper::Result<()> {
+pub async fn bind_server<S: Send + Sync + 'static>(
+    addr: &SocketAddr,
+    buttons: Vec<Button<S>>,
+    user_state: S,
+) -> hyper::Result<()> {
     let page = Html(create_page_html(buttons.iter()));
 
-    let buttons_map = buttons
-        .into_iter()
-        .map(|b| b.handler)
-        .collect();
+    let buttons_map = buttons.into_iter().map(|b| b.handler).collect();
 
     let btnify_state = Arc::new(BtnifyState {
         button_handlers: buttons_map,
         user_state,
-        page
+        page,
     });
 
     let app = Router::new()
@@ -139,7 +140,10 @@ async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> H
     state.page.clone()
 }
 
-async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Json(info): Json<ButtonInfo>) -> Json<ButtonResponse> {
+async fn post_root<S: Send + Sync>(
+    State(state): State<Arc<BtnifyState<S>>>,
+    Json(info): Json<ButtonInfo>,
+) -> Json<ButtonResponse> {
     let handler = state.button_handlers.get(info.id);
 
     let res = match handler {
@@ -161,7 +165,7 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
                 }
             }
         },
-        None => "Unknown button id".into()
+        None => "Unknown button id".into(),
     };
 
     Json(res)
@@ -170,5 +174,5 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
 struct BtnifyState<S: Send + Sync + 'static> {
     button_handlers: Vec<ButtonHandler<S>>,
     user_state: S,
-    page: Html<String>
+    page: Html<String>,
 }
