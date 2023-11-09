@@ -1,31 +1,3 @@
-//! # Button Related Structs
-//!
-//! This module contains structs related to buttons and explains how buttons work in general using
-//! Btnify. In case my explanations below don't make any sense please check the examples at the
-//! bottom of the page :)
-//!
-//! # Handlers
-//!
-//! Every [Button] has a handler, which is a function/closure that takes a reference to a global
-//! state (represented with the generic type parameter `S`) that all buttons in a Btnify server
-//! will be given. If you don't need any state then use a unit (`()`). Handlers are also given an
-//! optional vec of [ExtraResponse]s, which are the responses to any custom questions/prompts of
-//! the button. Handlers return a [ButtonResponse] which just holds a String that will be shown
-//! to the user. [ButtonResponse] implements `From<&str>` and `From<String>` for convince.
-//!
-//! # State System
-//!
-//! Btnify allows you to save state between button presses and buttons themselves using its state
-//! system. Because handlers are given an immutable reference to the state, you will need to use
-//! interior mutability. States must implement `Send` and `Sync`, so you will need a `Mutex`
-//! instead of a `RefCell`.
-//!
-//! # Extra Prompt and Response System
-//!
-//! Btnify allows you to ask the user for any extra data when they click your button using the
-//! extra prompt/response system. When a user presses a button, its extra prompts will be given
-//! to the user and their response will be given to the button's handler.
-
 use serde::{Deserialize, Serialize};
 
 /// When a user is asked for an [extra response], there is the option to click "cancel" on the
