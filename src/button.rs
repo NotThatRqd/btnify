@@ -1,6 +1,6 @@
 //! # Button Related Structs
 //!
-//! This module contains structs related to buttons and explains how b buttons work in general using
+//! This module contains structs related to buttons and explains how buttons work in general using
 //! Btnify. In case my explanations below don't make any sense please check the examples at the
 //! bottom of the page :)
 //!
@@ -25,42 +25,6 @@
 //! Btnify allows you to ask the user for any extra data when they click your button using the
 //! extra prompt/response system. When a user presses a button, its extra prompts will be given
 //! to the user and their response will be given to the button's handler.
-//!
-//! # Examples
-//!
-//! Hello World
-//!
-//! ```
-//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
-//!
-//! fn greet_handler(_: &(), _:Option<Vec<ExtraResponse>>) -> ButtonResponse {
-//!     ButtonResponse::from("hello world!")
-//! }
-//!
-//! // No extra prompts for this button
-//! let greet_button = Button::new("Greet!", greet_handler, None);
-//! ```
-//!
-//! Counter
-//!
-//! ```
-//! use std::sync::Mutex;
-//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
-//!
-//! struct Counter {
-//!     count: Mutex<i32>
-//! }
-//!
-//! fn count_handler(state: &Counter, _:Option<Vec<ExtraResponse>>) -> ButtonResponse {
-//!     let mut count  = state.count.lock().unwrap();
-//!     *count += 1;
-//!     format!("The count is now: {count}").into()
-//! }
-//!
-//! // Also no extra prompts
-//! let count_button = Button::new("Counter", count_handler, None);
-//! ```
-//!
 
 use serde::{Deserialize, Serialize};
 
@@ -70,36 +34,50 @@ use serde::{Deserialize, Serialize};
 /// [extra response]: crate::button
 pub type ExtraResponse = Option<String>;
 
+pub(crate) enum ButtonHandler<S: Send + Sync + 'static> {
+    Basic(Box<dyn Send + Sync + Fn() -> ButtonResponse>),
+    WithState(Box<dyn Send + Sync + Fn(&S) -> ButtonResponse>),
+    WithExtraPrompts(Box<dyn Send + Sync + Fn(Vec<ExtraResponse>) -> ButtonResponse>, Vec<String>),
+    WithBoth(Box<dyn Send + Sync + Fn(&S, Vec<ExtraResponse>) -> ButtonResponse>, Vec<String>)
+}
+
 /// Represents a button you can put on your btnify server.
-///
-/// `Name` is the text that will be on the button.
-///
-/// Check [here] for explanations for `handler` and `extra_prompts` along with examples
-///
-/// [here]: crate::button
 pub struct Button<S: Send + Sync + 'static> {
-    pub name: String,
-    pub handler: Box<dyn (Fn(&S, Option<Vec<ExtraResponse>>) -> ButtonResponse) + Send + Sync>,
-    pub extra_prompts: Option<Vec<String>>
+    pub(crate) name: String,
+
+    // TODO: rename "handler"
+    pub(crate) handler: ButtonHandler<S>,
 }
 
 impl<S: Send + Sync + 'static> Button<S> {
-    /// Creates a new [Button] struct.
-    ///
-    /// Check [Button]'s documentation for explanations of the fields.
-    pub fn new<T: Send + Sync + Fn(&S, Option<Vec<ExtraResponse>>) -> ButtonResponse + 'static>(name: &str, handler: T, extra_prompts: Option<Vec<String>>) -> Button<S> {
+    fn new(name: &str, handler: ButtonHandler<S>) -> Button<S> {
         Button {
             name: name.to_string(),
-            handler: Box::new(handler),
-            extra_prompts
+            handler
         }
+    }
+
+    pub fn create_basic_button(name: &str, handler: Box<dyn Send + Sync + Fn() -> ButtonResponse>) -> Button<S> {
+        Button::new(name, ButtonHandler::Basic(handler))
+    }
+
+    pub fn create_button_with_state(name: &str, handler: Box<dyn Send + Sync + Fn(&S) -> ButtonResponse>) -> Button<S> {
+        Button::new(name, ButtonHandler::WithState(handler))
+    }
+
+    pub fn create_button_with_prompts(name: &str, handler: Box<dyn Send + Sync + Fn(Vec<ExtraResponse>) -> ButtonResponse>, extra_prompts: Vec<String>) -> Button<S> {
+        Button::new(name, ButtonHandler::WithExtraPrompts(handler, extra_prompts))
+    }
+
+    pub fn create_button_with_state_and_prompts(name: &str, handler: Box<dyn Send + Sync + Fn(&S, Vec<ExtraResponse>) -> ButtonResponse>, extra_prompts: Vec<String>) -> Button<S> {
+        Button::new(name, ButtonHandler::WithBoth(handler, extra_prompts))
     }
 }
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ButtonInfo {
     pub id: usize,
-    pub extra_responses: Option<Vec<ExtraResponse>>
+    pub extra_responses: Vec<ExtraResponse>
 }
 
 /// Represents the server's response to a [Button] being pressed. Currently only has a message field.

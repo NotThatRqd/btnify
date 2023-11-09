@@ -1,4 +1,5 @@
 use crate::Button;
+use crate::button::ButtonHandler;
 
 pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
     let buttons = create_buttons_html(buttons);
@@ -14,16 +15,14 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
 
         <script>
             async function showMessage(id, extra_questions = null) {{
-                let extra_answers = [];
-                if (extra_questions === null) {{
-                    extra_answers = null;
-                }} else {{
+                let extra_responses = [];
+                if (extra_questions !== null) {{
                     for (const question of extra_questions) {{
-                        let answer = prompt(question);
-                        extra_answers.push(answer);
+                        let response = prompt(question);
+                        extra_responses.push(response);
                     }}
                 }}
-                const data = await postData("/", {{ id, extra_answers }});
+                const data = await postData("/", {{ id, extra_responses }});
                 alert(data.message);
             }}
 
@@ -50,27 +49,49 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item
 }
 
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
-    let questions_array = match &button.extra_prompts {
-        Some(extra_prompts) => {
-            let questions_array = extra_prompts
-                .iter()
-
-                // put single quotes around each question
-                .map(|question| format!("'{question}'"))
-
-                // separate each question with a comma
-                .collect::<Vec<String>>()
-                .join(",");
-
-            // surround with array brackets
-            let questions_array = format!("[{questions_array}]");
-
-            questions_array
+    match &button.handler {
+        ButtonHandler::Basic(_) | ButtonHandler::WithState(_) => {
+            format!(r#"<button onclick="showMessage({id}, null)">{}</button>"#, button.name)
         }
-        None => "null".to_string()
-    };
+        ButtonHandler::WithExtraPrompts(_, extra_prompts) | ButtonHandler::WithBoth(_, extra_prompts) => {
+            let questions_array = create_questions_array(&extra_prompts);
+            format!(r#"<button onclick="showMessage({id}, {questions_array})">{}</button>"#, button.name)
+        }
+    }
+}
 
-    format!(r#"<button onclick="showMessage({id}, {questions_array})">{}</button>"#, button.name)
+fn create_questions_array(extra_prompts: &Vec<String>) -> String {
+    let questions_array = extra_prompts
+        .iter()
+
+        .map(|question| sanitize_for_js_string(question))
+
+        // put single quotes around each question
+        .map(|question| format!("'{question}'"))
+
+        // separate each question with a comma
+        .collect::<Vec<String>>()
+        .join(",");
+
+    // surround with array brackets
+    let questions_array = format!("[{questions_array}]");
+
+    questions_array
+}
+
+fn sanitize_for_js_string(input: &str) -> String {
+    input
+        .chars()
+        .map(|c| match c {
+            '\\' => "\\\\".to_string(), // Escape backslash
+            '\'' => "\\\'".to_string(), // Escape single quote
+            '"' => "\\\"".to_string(),  // Escape double quote
+            '\n' => "\\n".to_string(),  // Escape newline character
+            '\r' => "\\r".to_string(),  // Escape carriage return character
+            '\t' => "\\t".to_string(),  // Escape tab character
+            _ => c.to_string()
+        })
+        .collect()
 }
 
 #[cfg(test)]

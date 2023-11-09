@@ -1,4 +1,36 @@
-#![doc=include_str!("../README.md")]
+//! # Examples
+//!
+//! Hello World
+//!
+//! ```
+//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
+//!
+//! fn greet_handler(_: &(), _:Option<Vec<ExtraResponse>>) -> ButtonResponse {
+//!     ButtonResponse::from("hello world!")
+//! }
+//!
+//! // No extra prompts for this button
+//! let greet_button = Button::new("Greet!", greet_handler, None);
+//! ```
+//! Counter
+//!
+//! ```
+//! use std::sync::Mutex;
+//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
+//!
+//! struct Counter {
+//!     count: Mutex<i32>
+//! }
+//!
+//! fn count_handler(state: &Counter, _:Option<Vec<ExtraResponse>>) -> ButtonResponse {
+//!     let mut count  = state.count.lock().unwrap();
+//!     *count += 1;
+//!     format!("The count is now: {count}").into()
+//! }
+//!
+//! // Also no extra prompts
+//! let count_button = Button::new("Counter", count_handler, None);
+//! ```
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -6,7 +38,7 @@ use axum::{Json, Router};
 use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
-use crate::button::{Button, ButtonInfo, ButtonResponse, ExtraResponse};
+use crate::button::{Button, ButtonHandler, ButtonInfo, ButtonResponse};
 use crate::html_utils::create_page_html;
 
 mod html_utils;
@@ -53,15 +85,32 @@ async fn post_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>, Jso
     let handler = state.button_handlers.get(info.id);
 
     let res = match handler {
-        Some(handler) => handler(&state.user_state, info.extra_responses),
+        Some(handler) => match handler {
+            ButtonHandler::Basic(handler) => handler(),
+            ButtonHandler::WithState(handler) => handler(&state.user_state),
+            ButtonHandler::WithExtraPrompts(handler, extra_prompts) => {
+                if info.extra_responses.len() == extra_prompts.len() {
+                    handler(info.extra_responses)
+                } else {
+                    "Error parsing extra responses (extra responses length does not match extra prompts length)".into()
+                }
+            }
+            ButtonHandler::WithBoth(handler, extra_prompts) => {
+                if info.extra_responses.len() == extra_prompts.len() {
+                    handler(&state.user_state, info.extra_responses)
+                } else {
+                    "Error parsing extra responses (extra responses length does not match extra prompts length)".into()
+                }
+            }
+        },
         None => "Unknown button id".into()
     };
 
     Json(res)
 }
 
-struct BtnifyState<S> {
-    button_handlers: Vec<Box<dyn (Fn(&S, Option<Vec<ExtraResponse>>) -> ButtonResponse) + Send + Sync>>,
+struct BtnifyState<S: Send + Sync + 'static> {
+    button_handlers: Vec<ButtonHandler<S>>,
     user_state: S,
     page: Html<String>
 }
