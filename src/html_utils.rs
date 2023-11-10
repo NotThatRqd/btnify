@@ -1,9 +1,13 @@
+use crate::button::ButtonHandlerVariant;
 use crate::Button;
 
-pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
+pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(
+    buttons: impl Iterator<Item = &'a Button<S>>,
+) -> String {
     let buttons = create_buttons_html(buttons);
 
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
     <head>
         <title>BTNify</title>
@@ -13,8 +17,15 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
         {}
 
         <script>
-            async function showMessage(id) {{
-                const data = await postData("/", {{ id }});
+            async function showMessage(id, extra_questions = null) {{
+                let extra_responses = [];
+                if (extra_questions !== null) {{
+                    for (const question of extra_questions) {{
+                        let response = prompt(question);
+                        extra_responses.push(response);
+                    }}
+                }}
+                const data = await postData("/", {{ id, extra_responses }});
                 alert(data.message);
             }}
 
@@ -30,10 +41,14 @@ pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(buttons: impl Itera
             }}
         </script>
     </body>
-</html>"#, buttons)
+</html>"#,
+        buttons
+    )
 }
 
-fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item = &'a Button<S>>) -> String {
+fn create_buttons_html<'a, S: Send + Sync + 'static>(
+    buttons: impl Iterator<Item = &'a Button<S>>,
+) -> String {
     buttons
         .enumerate()
         .map(|(id, b)| create_button_html(b, id))
@@ -41,38 +56,103 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(buttons: impl Iterator<Item
 }
 
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
-    format!(r#"<button onclick="showMessage({})">{}</button>"#, id, button.name)
+    match &button.handler {
+        ButtonHandlerVariant::Basic(_) | ButtonHandlerVariant::WithState(_) => {
+            format!(
+                r#"<button onclick="showMessage({id}, null)">{}</button>"#,
+                button.name
+            )
+        }
+        ButtonHandlerVariant::WithExtraPrompts(_, extra_prompts)
+        | ButtonHandlerVariant::WithBoth(_, extra_prompts) => {
+            let questions_array = create_questions_array(&extra_prompts);
+            format!(
+                r#"<button onclick="showMessage({id}, {questions_array})">{}</button>"#,
+                button.name
+            )
+        }
+    }
+}
+
+fn create_questions_array(extra_prompts: &Vec<String>) -> String {
+    let questions_array = extra_prompts
+        .iter()
+        .map(|question| sanitize_for_js_string(question))
+        .map(|question| format!("'{question}'")) // put single quotes around each question
+        .collect::<Vec<String>>() // separate each question with a comma
+        .join(",");
+
+    // surround with brackets
+    let questions_array = format!("[{questions_array}]");
+
+    questions_array
+}
+
+fn sanitize_for_js_string(input: &str) -> String {
+    input
+        .chars()
+        .map(|c| match c {
+            '\\' => "\\\\".to_string(), // Escape backslash
+            '\'' => "\\\'".to_string(), // Escape single quote
+            '"' => "\\\"".to_string(),  // Escape double quote
+            '\n' => "\\n".to_string(),  // Escape newline character
+            '\r' => "\\r".to_string(),  // Escape carriage return character
+            '\t' => "\\t".to_string(),  // Escape tab character
+            _ => c.to_string(),
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::button::ButtonResponse;
     use super::*;
+    use crate::button::ButtonResponse;
+    use html_to_string_macro::html;
 
-    /// Dummy function that can be used as a button handler
-    fn dummy(_: &()) -> ButtonResponse {
+    fn basic_dummy() -> ButtonResponse {
+        unimplemented!()
+    }
+    fn prompts_dummy(_: Vec<Option<String>>) -> ButtonResponse {
         unimplemented!()
     }
 
     #[test]
     fn create_button_test() {
-        let button = create_button_html(&Button::new("Count", dummy), 0);
-        assert_eq!(button, r#"<button onclick="showMessage(0)">Count</button>"#);
+        let button = create_button_html(
+            &Button::<()>::create_basic_button("Count", Box::new(basic_dummy)),
+            0,
+        );
+        assert_eq!(
+            button,
+            html!(<button onclick="showMessage(0, null)">"Count"</button>)
+        );
     }
 
     #[test]
     fn create_buttons_test() {
-        let count = Button::new("Count", dummy);
-        let ping = Button::new("Ping", dummy);
-        let greet = Button::new("Greet", dummy);
+        let count = Button::create_button_with_prompts(
+            "Count",
+            Box::new(prompts_dummy),
+            vec!["How much do you want to add?".to_string()],
+        );
+        let ping = Button::create_basic_button("Ping", Box::new(basic_dummy));
+        let greet = Button::create_button_with_prompts(
+            "Greet",
+            Box::new(prompts_dummy),
+            vec!["Name?".to_string(), "Fav. Color?".to_string()],
+        );
 
-        let list = [count, ping, greet];
+        let list: [Button<()>; 3] = [count, ping, greet];
 
         let buttons_html = create_buttons_html(list.iter());
 
-        // todo: make cleaner using raw string
-        assert_eq!(buttons_html, "<button onclick=\"showMessage(0)\">Count</button>\
-        <button onclick=\"showMessage(1)\">Ping</button>\
-        <button onclick=\"showMessage(2)\">Greet</button>");
+        assert_eq!(
+            buttons_html,
+            html!(
+                <button onclick="showMessage(0, ['How much do you want to add?'])">"Count"</button>
+                <button onclick="showMessage(1, null)">"Ping"</button>
+                <button onclick="showMessage(2, ['Name?','Fav. Color?'])">"Greet"</button>
+            )
+        );
     }
 }
