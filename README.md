@@ -20,7 +20,7 @@ rust library to simplify allowing user input over the web
 > Hosts a website with buttons for you so you can focus on what matters!
 
 Btnify is a small library that lets you host a website with some buttons that will call a function or closure
-when clicked. Under the hood, Btnify uses [Axum](https://crates.io/crates/axum). This library is pretty simple,
+when clicked. Under the hood, Btnify uses [Axum](https://github.com/tokio-rs/axum). This library is pretty simple,
 but it works, and it's open source! Please leave a pull request with any improvements you have :) I would appreciate it
 very much.
 
