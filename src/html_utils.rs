@@ -1,4 +1,4 @@
-use crate::button::ButtonHandler;
+use crate::button::ButtonHandlerVariant;
 use crate::Button;
 
 pub(super) fn create_page_html<'a, S: Send + Sync + 'static>(
@@ -57,14 +57,14 @@ fn create_buttons_html<'a, S: Send + Sync + 'static>(
 
 fn create_button_html<S: Send + Sync + 'static>(button: &Button<S>, id: usize) -> String {
     match &button.handler {
-        ButtonHandler::Basic(_) | ButtonHandler::WithState(_) => {
+        ButtonHandlerVariant::Basic(_) | ButtonHandlerVariant::WithState(_) => {
             format!(
                 r#"<button onclick="showMessage({id}, null)">{}</button>"#,
                 button.name
             )
         }
-        ButtonHandler::WithExtraPrompts(_, extra_prompts)
-        | ButtonHandler::WithBoth(_, extra_prompts) => {
+        ButtonHandlerVariant::WithExtraPrompts(_, extra_prompts)
+        | ButtonHandlerVariant::WithBoth(_, extra_prompts) => {
             let questions_array = create_questions_array(&extra_prompts);
             format!(
                 r#"<button onclick="showMessage({id}, {questions_array})">{}</button>"#,

@@ -90,7 +90,7 @@
 //! //    .unwrap();
 //! ```
 
-use crate::button::{Button, ButtonHandler, ButtonInfo, ButtonResponse};
+use crate::button::{Button, ButtonHandlerVariant, ButtonInfo, ButtonResponse};
 use crate::html_utils::create_page_html;
 use axum::extract::State;
 use axum::response::Html;
@@ -105,7 +105,7 @@ mod html_utils;
 /// Start your btnify server on the specified address with the specified [Button]s and [state].
 /// If you don't need any custom state then use a unit (`()`)
 ///
-/// [state]: button
+/// [state]: Button::create_button_with_state
 ///
 /// # Errors
 ///
@@ -148,16 +148,16 @@ async fn post_root<S: Send + Sync>(
 
     let res = match handler {
         Some(handler) => match handler {
-            ButtonHandler::Basic(handler) => handler(),
-            ButtonHandler::WithState(handler) => handler(&state.user_state),
-            ButtonHandler::WithExtraPrompts(handler, extra_prompts) => {
+            ButtonHandlerVariant::Basic(handler) => handler(),
+            ButtonHandlerVariant::WithState(handler) => handler(&state.user_state),
+            ButtonHandlerVariant::WithExtraPrompts(handler, extra_prompts) => {
                 if info.extra_responses.len() == extra_prompts.len() {
                     handler(info.extra_responses)
                 } else {
                     "Error parsing extra responses (extra responses length does not match extra prompts length)".into()
                 }
             }
-            ButtonHandler::WithBoth(handler, extra_prompts) => {
+            ButtonHandlerVariant::WithBoth(handler, extra_prompts) => {
                 if info.extra_responses.len() == extra_prompts.len() {
                     handler(&state.user_state, info.extra_responses)
                 } else {
@@ -172,7 +172,7 @@ async fn post_root<S: Send + Sync>(
 }
 
 struct BtnifyState<S: Send + Sync + 'static> {
-    button_handlers: Vec<ButtonHandler<S>>,
+    button_handlers: Vec<ButtonHandlerVariant<S>>,
     user_state: S,
     page: Html<String>,
 }
