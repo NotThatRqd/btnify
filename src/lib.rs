@@ -118,10 +118,10 @@ pub async fn bind_server<S: Send + Sync + 'static>(
 ) -> hyper::Result<()> {
     let page = Html(create_page_html(buttons.iter()));
 
-    let buttons_map = buttons.into_iter().map(|b| b.handler).collect();
+    let button_handlers = buttons.into_iter().map(|b| b.handler).collect();
 
     let btnify_state = Arc::new(BtnifyState {
-        button_handlers: buttons_map,
+        button_handlers,
         user_state,
         page,
     });
