@@ -1,6 +1,6 @@
 [package]
 name = "btnify"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 description = "Hosts a website with buttons for you so you can focus on what matters!"
 license = "MIT"

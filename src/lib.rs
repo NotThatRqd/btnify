@@ -3,12 +3,13 @@
 //! Hello World
 //!
 //! ```
-//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
+//! use btnify::button::{Button, ButtonResponse};
 //!
 //! fn greet_handler() -> ButtonResponse {
 //!     ButtonResponse::from("hello world!")
 //! }
 //!
+//! // this button doesn't use any state so we will mark the state generic as unit
 //! let greet_button: Button<()> = Button::create_basic_button("Greet!", Box::new(greet_handler));
 //! ```
 //!
@@ -40,10 +41,11 @@
 //! use std::sync::Mutex;
 //! use tokio::sync::oneshot;
 //! use btnify::bind_server;
-//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
+//! use btnify::ShutdownConfig;
+//! use btnify::button::{Button, ButtonResponse};
 //!
 //! struct Counter {
-//!     // must use mutex to be thread-safe
+//!     // must use Mutex for interior mutability
 //!     count: Mutex<i32>,
 //!     end_server_tx: Mutex<Option<oneshot::Sender<()>>>,
 //! }
@@ -88,9 +90,13 @@
 //!     }
 //! }
 //!
-//! fn end_handler(state: &Counter) -> ButtonResponse {
+//! fn end_button_handler(state: &Counter) -> ButtonResponse {
 //!     state.end_server();
 //!     "Server is ending. Goodbye!".into()
+//! }
+//!
+//! fn server_end(state: &Counter) {
+//!     println!("goodbye world. ;(");
 //! }
 //!
 //! let count_button = Button::create_button_with_state("Counter", Box::new(count_handler));
@@ -101,11 +107,15 @@
 //!     vec!["How much do you want to add?".to_string()]
 //! );
 //!
-//! let end_button = Button::create_button_with_state("End Server", Box::new(end_handler));
+//! let end_button = Button::create_button_with_state("End Server", Box::new(end_button_handler));
 //!
 //! let buttons = vec![count_button, plus_button, end_button];
 //!
-//! bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, Counter::new(), None);
+//! let (tx, rx) = oneshot::channel();
+//!
+//! let shutdown_config = ShutdownConfig::new(Some(rx), Box::new(server_end));
+//!
+//! bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, Counter::new(tx), None);
 //! // uncomment to actually run the server:
 //! //    .await
 //! //    .unwrap();
@@ -132,14 +142,20 @@ pub use tokio::sync::oneshot;
 /// I recommended that you store the sender in your server's state.
 ///
 /// Also see: [tokio::sync::oneshot]
-pub struct ShutdownConfig {
-    pub shutdown_rx: oneshot::Receiver<()>,
-    pub handler: Box<dyn FnOnce()>,
+pub struct ShutdownConfig<S: Send + Sync + 'static> {
+    pub shutdown_rx: Option<oneshot::Receiver<()>>,
+    pub handler: Box<dyn FnOnce(&S)>,
 }
 
-impl ShutdownConfig {
-    pub fn new(shutdown_rx: oneshot::Receiver<()>, handler: Box<dyn FnOnce()>) -> ShutdownConfig {
-        ShutdownConfig { shutdown_rx, handler }
+impl<S: Send + Sync + 'static> ShutdownConfig<S> {
+    pub fn new(
+        shutdown_rx: Option<oneshot::Receiver<()>>,
+        handler: Box<dyn FnOnce(&S)>,
+    ) -> ShutdownConfig<S> {
+        ShutdownConfig {
+            shutdown_rx,
+            handler,
+        }
     }
 }
 
@@ -156,7 +172,7 @@ pub async fn bind_server<S: Send + Sync + 'static>(
     addr: &SocketAddr,
     buttons: Vec<Button<S>>,
     user_state: S,
-    shutdown_config: Option<ShutdownConfig>,
+    shutdown_config: Option<ShutdownConfig<S>>,
 ) -> hyper::Result<()> {
     let page = Html(create_page_html(buttons.iter()));
 
@@ -170,24 +186,30 @@ pub async fn bind_server<S: Send + Sync + 'static>(
 
     let app = Router::new()
         .route("/", get(get_root).post(post_root))
-        .with_state(btnify_state);
+        .with_state(Arc::clone(&btnify_state));
 
     axum::Server::bind(addr)
         .serve(app.into_make_service())
-        .with_graceful_shutdown(shutdown_handler(shutdown_config))
+        .with_graceful_shutdown(shutdown_handler(shutdown_config, btnify_state))
         .await
 }
 
-async fn shutdown_handler(config: Option<ShutdownConfig>) {
+async fn shutdown_handler<S: Send + Sync + 'static>(
+    config: Option<ShutdownConfig<S>>,
+    state: Arc<BtnifyState<S>>,
+) {
     if let Some(config) = config {
-        tokio::select! {
-            _ = ctrl_c_signal() => {},
-            _ = config.shutdown_rx => {},
+        if let Some(shutdown_rx) = config.shutdown_rx {
+            tokio::select! {
+                _ = ctrl_c_signal() => {},
+                _ = shutdown_rx => {},
+            }
+            (config.handler)(&state.user_state);
+            return;
         }
-        (config.handler)();
-    } else {
-        ctrl_c_signal().await
     }
+
+    ctrl_c_signal().await;
 }
 
 async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> Html<String> {
