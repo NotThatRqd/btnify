@@ -30,7 +30,7 @@ Run `cargo add btnify`
 
 or
 
-Add `btnify = "2.0.0"` to your `Cargo.toml`
+Add `btnify = "2.0.2"` to your `Cargo.toml`
 
 ## How to use
 
@@ -83,7 +83,7 @@ use btnify::ShutdownConfig;
 use btnify::button::{Button, ButtonResponse};
 
 struct Counter {
-    // must use Mutex for interior mutability
+    // must use Mutex for interior mutability and thread-safety
     count: Mutex<i32>,
     end_server_tx: Mutex<Option<oneshot::Sender<()>>>,
 }

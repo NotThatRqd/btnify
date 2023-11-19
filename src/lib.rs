@@ -45,7 +45,7 @@
 //! use btnify::button::{Button, ButtonResponse};
 //!
 //! struct Counter {
-//!     // must use Mutex for interior mutability
+//!     // must use Mutex for interior mutability and thread-safety
 //!     count: Mutex<i32>,
 //!     end_server_tx: Mutex<Option<oneshot::Sender<()>>>,
 //! }
