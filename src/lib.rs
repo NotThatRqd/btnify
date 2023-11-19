@@ -113,7 +113,7 @@
 //!
 //! let (tx, rx) = oneshot::channel();
 //!
-//! let shutdown_config = ShutdownConfig::new(Some(rx), Box::new(server_end));
+//! let shutdown_config = ShutdownConfig::new(Some(rx), Some(Box::new(server_end)));
 //!
 //! bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, Counter::new(tx), None);
 //! // uncomment to actually run the server:
@@ -144,13 +144,13 @@ pub use tokio::sync::oneshot;
 /// Also see: [tokio::sync::oneshot]
 pub struct ShutdownConfig<S: Send + Sync + 'static> {
     pub shutdown_rx: Option<oneshot::Receiver<()>>,
-    pub handler: Box<dyn FnOnce(&S)>,
+    pub handler: Option<Box<dyn FnOnce(&S)>>,
 }
 
 impl<S: Send + Sync + 'static> ShutdownConfig<S> {
     pub fn new(
         shutdown_rx: Option<oneshot::Receiver<()>>,
-        handler: Box<dyn FnOnce(&S)>,
+        handler: Option<Box<dyn FnOnce(&S)>>,
     ) -> ShutdownConfig<S> {
         ShutdownConfig {
             shutdown_rx,
@@ -204,7 +204,9 @@ async fn shutdown_handler<S: Send + Sync + 'static>(
                 _ = ctrl_c_signal() => {},
                 _ = shutdown_rx => {},
             }
-            (config.handler)(&state.user_state);
+            if let Some(handler) = config.handler {
+                handler(&state.user_state);
+            }
             return;
         }
     }

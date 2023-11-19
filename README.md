@@ -151,7 +151,7 @@ let buttons = vec![count_button, plus_button, end_button];
 
 let (tx, rx) = oneshot::channel();
 
-let shutdown_config = ShutdownConfig::new(Some(rx), Box::new(server_end));
+let shutdown_config = ShutdownConfig::new(Some(rx), Some(Box::new(server_end)));
 
 bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, Counter::new(tx), None);
 // uncomment to actually run the server:
