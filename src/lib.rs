@@ -3,12 +3,13 @@
 //! Hello World
 //!
 //! ```
-//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
+//! use btnify::button::{Button, ButtonResponse};
 //!
 //! fn greet_handler() -> ButtonResponse {
 //!     ButtonResponse::from("hello world!")
 //! }
 //!
+//! // this button doesn't use any state so we will mark the state generic as unit
 //! let greet_button: Button<()> = Button::create_basic_button("Greet!", Box::new(greet_handler));
 //! ```
 //!
@@ -38,19 +39,34 @@
 //!
 //! ```
 //! use std::sync::Mutex;
+//! use tokio::sync::oneshot;
 //! use btnify::bind_server;
-//! use btnify::button::{Button, ButtonResponse, ExtraResponse};
+//! use btnify::ShutdownConfig;
+//! use btnify::button::{Button, ButtonResponse};
 //!
 //! struct Counter {
-//!     // must use mutex to be thread-safe
-//!     count: Mutex<i32>
+//!     // must use Mutex for interior mutability
+//!     count: Mutex<i32>,
+//!     end_server_tx: Mutex<Option<oneshot::Sender<()>>>,
 //! }
 //!
 //! impl Counter {
-//!     fn new() -> Counter {
+//!     fn new(tx: oneshot::Sender<()>) -> Counter {
 //!         Counter {
-//!             count: Mutex::new(0)
+//!             count: Mutex::new(0),
+//!             end_server_tx: Mutex::new(Some(tx)),
 //!         }
+//!     }
+//!
+//!     fn end_server(&self) {
+//!         // Acquire the Mutex to modify
+//!         let mut tx = self.end_server_tx.lock().unwrap();
+//!
+//!         // Take the sender
+//!         let tx = tx.take().unwrap();
+//!
+//!         // Send the signal to end the server
+//!         tx.send(()).unwrap();
 //!     }
 //! }
 //!
@@ -59,11 +75,11 @@
 //!     format!("The count is: {count}").into()
 //! }
 //!
-//! fn plus_handler(counter_struct: &Counter, responses: Vec<Option<String>>) -> ButtonResponse {
+//! fn plus_handler(state: &Counter, responses: Vec<Option<String>>) -> ButtonResponse {
 //!     match &responses[0] {
 //!         Some(response_str) => {
 //!             if let Ok(amount) = response_str.parse::<i32>() {
-//!                 let mut count = counter_struct.count.lock().unwrap();
+//!                 let mut count = state.count.lock().unwrap();
 //!                 *count += amount;
 //!                 format!("The count now is: {}", *count).into()
 //!             } else {
@@ -74,6 +90,15 @@
 //!     }
 //! }
 //!
+//! fn end_button_handler(state: &Counter) -> ButtonResponse {
+//!     state.end_server();
+//!     "Server is ending. Goodbye!".into()
+//! }
+//!
+//! fn server_end(state: &Counter) {
+//!     println!("goodbye world. ;(");
+//! }
+//!
 //! let count_button = Button::create_button_with_state("Counter", Box::new(count_handler));
 //!
 //! let plus_button = Button::create_button_with_state_and_prompts(
@@ -82,10 +107,16 @@
 //!     vec!["How much do you want to add?".to_string()]
 //! );
 //!
-//! let buttons = [count_button, plus_button];
+//! let end_button = Button::create_button_with_state("End Server", Box::new(end_button_handler));
 //!
-//! // uncomment to run server on localhost:3000
-//! // bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, Counter::new())
+//! let buttons = vec![count_button, plus_button, end_button];
+//!
+//! let (tx, rx) = oneshot::channel();
+//!
+//! let shutdown_config = ShutdownConfig::new(Some(rx), Some(Box::new(server_end)));
+//!
+//! bind_server(&"0.0.0.0:3000".parse().unwrap(), buttons, Counter::new(tx), None);
+//! // uncomment to actually run the server:
 //! //    .await
 //! //    .unwrap();
 //! ```
@@ -98,12 +129,38 @@ use axum::routing::get;
 use axum::{Json, Router};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::signal;
 
 pub mod button;
 mod html_utils;
 
-/// Start your btnify server on the specified address with the specified [Button]s and [state].
-/// If you don't need any custom state then use a unit (`()`)
+pub use tokio::sync::oneshot;
+
+/// When the Btnify server is about to shut down the specified handler
+/// will be called. The server will be triggered to shut down when
+/// either ctrl+c is pressed or the `shutdown_rx` receiver is triggered.
+/// I recommended that you store the sender in your server's state.
+///
+/// Also see: [tokio::sync::oneshot]
+pub struct ShutdownConfig<S: Send + Sync + 'static> {
+    pub shutdown_rx: Option<oneshot::Receiver<()>>,
+    pub handler: Option<Box<dyn FnOnce(&S)>>,
+}
+
+impl<S: Send + Sync + 'static> ShutdownConfig<S> {
+    pub fn new(
+        shutdown_rx: Option<oneshot::Receiver<()>>,
+        handler: Option<Box<dyn FnOnce(&S)>>,
+    ) -> ShutdownConfig<S> {
+        ShutdownConfig {
+            shutdown_rx,
+            handler,
+        }
+    }
+}
+
+/// Start your btnify server on the specified address with the specified [Button]s and [state],
+/// along with the specified [ShutdownConfig]. If you don't need any custom state then use a unit (`()`)
 ///
 /// [state]: Button::create_button_with_state
 ///
@@ -115,6 +172,7 @@ pub async fn bind_server<S: Send + Sync + 'static>(
     addr: &SocketAddr,
     buttons: Vec<Button<S>>,
     user_state: S,
+    shutdown_config: Option<ShutdownConfig<S>>,
 ) -> hyper::Result<()> {
     let page = Html(create_page_html(buttons.iter()));
 
@@ -128,11 +186,32 @@ pub async fn bind_server<S: Send + Sync + 'static>(
 
     let app = Router::new()
         .route("/", get(get_root).post(post_root))
-        .with_state(btnify_state);
+        .with_state(Arc::clone(&btnify_state));
 
     axum::Server::bind(addr)
         .serve(app.into_make_service())
+        .with_graceful_shutdown(shutdown_handler(shutdown_config, btnify_state))
         .await
+}
+
+async fn shutdown_handler<S: Send + Sync + 'static>(
+    config: Option<ShutdownConfig<S>>,
+    state: Arc<BtnifyState<S>>,
+) {
+    if let Some(config) = config {
+        if let Some(shutdown_rx) = config.shutdown_rx {
+            tokio::select! {
+                _ = ctrl_c_signal() => {},
+                _ = shutdown_rx => {},
+            }
+            if let Some(handler) = config.handler {
+                handler(&state.user_state);
+            }
+            return;
+        }
+    }
+
+    ctrl_c_signal().await;
 }
 
 async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> Html<String> {
@@ -175,4 +254,30 @@ struct BtnifyState<S: Send + Sync + 'static> {
     button_handlers: Vec<ButtonHandlerVariant<S>>,
     user_state: S,
     page: Html<String>,
+}
+
+async fn ctrl_c_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("install ctrl+c signal handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("install terminate signal handler")
+            .recv()
+            .await;
+    };
+
+    // If not on unix, use a placeholder that will not ever resolve
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    // Wait for ctrl+c or terminate signal before this future completes
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
