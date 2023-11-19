@@ -157,6 +157,13 @@ impl<S: Send + Sync + 'static> ShutdownConfig<S> {
             handler,
         }
     }
+
+    fn empty() -> ShutdownConfig<S> {
+        ShutdownConfig {
+            shutdown_rx: None,
+            handler: None,
+        }
+    }
 }
 
 /// Start your btnify server on the specified address with the specified [Button]s and [state],
@@ -198,20 +205,20 @@ async fn shutdown_handler<S: Send + Sync + 'static>(
     config: Option<ShutdownConfig<S>>,
     state: Arc<BtnifyState<S>>,
 ) {
-    if let Some(config) = config {
-        if let Some(shutdown_rx) = config.shutdown_rx {
-            tokio::select! {
-                _ = ctrl_c_signal() => {},
-                _ = shutdown_rx => {},
-            }
-            if let Some(handler) = config.handler {
-                handler(&state.user_state);
-            }
-            return;
+    let config = config.unwrap_or_else(ShutdownConfig::empty);
+
+    if let Some(shutdown_rx) = config.shutdown_rx {
+        tokio::select! {
+            _ = ctrl_c_signal() => {},
+            _ = shutdown_rx => {},
         }
+    } else {
+        ctrl_c_signal().await;
     }
 
-    ctrl_c_signal().await;
+    if let Some(handler) = config.handler {
+        handler(&state.user_state);
+    }
 }
 
 async fn get_root<S: Send + Sync>(State(state): State<Arc<BtnifyState<S>>>) -> Html<String> {
